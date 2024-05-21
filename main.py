@@ -4,6 +4,9 @@ import time
 import random
 
 SIZE = 40
+BACKGROUND_COLOUR = (0, 0, 0)
+WINDOW_WIDTH = 1000
+WINDOW_HEIGHT = 800
 class Apple:
     def __init__(self, parent_screen):
         self.image= pygame.image.load("apple.jpg").convert()
@@ -35,7 +38,7 @@ class Snake:
         self.y.append(-1)
     
     def draw(self):
-        self.parent_screen.fill((0, 0, 0))
+        self.parent_screen.fill(BACKGROUND_COLOUR)
         for i in range(self.length):
             self.parent_screen.blit(self.block, (self.x[i], self.y[i]))
         pygame.display.flip()
@@ -71,8 +74,11 @@ class Snake:
 class Game:
     def __init__(self):
         pygame.init()
-        self.surface = pygame.display.set_mode((1000, 800))
-        self.surface.fill((0, 0, 0))
+        pygame.display.set_caption("Snake and Apple Game")
+        pygame.mixer.init()
+        self.play_background_music()
+        self.surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+        self.surface.fill(BACKGROUND_COLOUR)
         self.snake = Snake(self.surface, 1)
         self.snake.draw()
         self.apple = Apple(self.surface)
@@ -80,27 +86,62 @@ class Game:
 
     def is_collision(self, x1, y1, x2, y2):
         # x1, y1 is the top left edge of the snake while x2, y2 is the top left edge of the apple
-        # x1 >= x2 checks for condition when the snake collides the apple from the left
-        # x1 <= x2 + SIZE checks for condition when the snake collides the apple from the right
-        # y1 >= y2 checks for condition when the snake collides the apple from the top
-        # y1 <= y2 + SIZE checks for condition whe the snake collides the apple from the bottom
+        # x1 >= x2: Ensures the snake's left edge is at or right of the apple's left edge.
+        # x1 < x2 + SIZE: Ensures the snake's left edge is left of the apple's right edge.
+        # y1 >= y2: Ensures the snake's top edge is at or below the apple's top edge.
+        # y1 < y2 + SIZE: Ensures the snake's top edge is above the apple's bottom edge.
 
         if x1 >= x2 and x1 < x2 + SIZE:
             if y1 >= y2 and y1 < y2 + SIZE:
                 return True
         return False
+    
+    def play_background_music(self):
+        pygame.mixer.music.load("bg_music_1.mp3")
+        pygame.mixer.music.play()
 
+    def play_sound(self, sound):
+        sound = pygame.mixer.Sound(f"{sound}.mp3")
+        pygame.mixer.Sound.play(sound)
 
     def play(self):
         self.snake.walk()
         self.apple.draw()
         self.display_score()
         pygame.display.flip()
-        
+
+        # snake colliding with apple
         if self.is_collision(self.snake.x[0], self.snake.y[0], self.apple.x, self.apple.y):
             print("collide")
+            self.play_sound("ding")
             self.snake.increase_length()
             self.apple.move()
+
+        # snake colliding with itself
+        for i in range(3, self.snake.length):
+            if self.is_collision(self.snake.x[0], self.snake.y[0], self.snake.x[i], self.snake.y[i]):
+                self.play_sound("crash")
+                raise "Game Over"
+                exit()
+                
+        # snake colliding with boundary
+        if self.snake.x[0] < 0 or self.snake.x[0] >= WINDOW_HEIGHT or self.snake.y[0] < 0 or self.snake.y[0] >= WINDOW_WIDTH:
+            self.play_sound("crash")
+            raise "Game Over"
+        
+    def show_game_over(self):
+        self.surface.fill(BACKGROUND_COLOUR)
+        font = pygame.font.SysFont("arial", 30)
+        line1 = font.render(f"Score: {self.snake.length}", True, (255, 255, 255))
+        self.surface.blit(line1, (200, 300))
+        line2 = font.render("To play again press Enter. To exit press Escape", True, (255, 255, 255))
+        self.surface.blit(line2,(200, 350))
+        pygame.display.flip()
+        pygame.mixer.music.pause()
+
+    def reset(self):
+        self.snake = Snake(self.surface, 1)
+        self.apple = Apple(self.surface)
 
     def display_score(self):
         font = pygame.font.SysFont("arial", 30)
@@ -109,23 +150,35 @@ class Game:
 
     def run(self):
         running = True
+        pause = False
         while running:
             for event in pygame.event.get():
                 if event.type == KEYDOWN:
                     if event.key == K_ESCAPE:
                         running = False
-                    if event.key == K_UP:
-                        self.snake.move_up()
-                    if event.key == K_DOWN:
-                        self.snake.move_down()
-                    if event.key == K_LEFT:
-                        self.snake.move_left()
-                    if event.key == K_RIGHT:
-                        self.snake.move_right()
+                    if event.key == K_RETURN:
+                        pygame.mixer.music.unpause()
+                        pause = False
+                    if not pause:
+                        if event.key == K_UP:
+                            self.snake.move_up()
+                        if event.key == K_DOWN:
+                            self.snake.move_down()
+                        if event.key == K_LEFT:
+                            self.snake.move_left()
+                        if event.key == K_RIGHT:
+                            self.snake.move_right()
                 elif event.type == QUIT:
                     running = False
 
-            self.play()
+            try:
+                if not pause:
+                    self.play()
+            except Exception as e:
+                self.show_game_over()
+                pause = True
+                self.reset()
+
             time.sleep(0.2) 
 
 
